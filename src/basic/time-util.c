@@ -1893,7 +1893,7 @@ TimestampStyle timestamp_style_from_string(const char *s) {
         return t;
 }
 
-int parse_calendar_date_full(const char *s, bool allow_pre_epoch, usec_t *ret_usec, struct tm *ret_tm) {
+int parse_calendar_date_full(const char *s, usec_t *ret_usec) {
         struct tm parsed_tm = {}, copy_tm;
         const char *k;
         int r;
@@ -1908,19 +1908,9 @@ int parse_calendar_date_full(const char *s, bool allow_pre_epoch, usec_t *ret_us
 
         usec_t usec = USEC_INFINITY;
 
-        if (allow_pre_epoch) {
-                /* For birth dates we use timegm() directly since we need to accept pre-epoch dates.
-                 * timegm() returns (time_t) -1 both on error and for one second before the epoch.
-                 * Initialize wday to -1 beforehand: if it remains -1 after the call, it's a genuine
-                 * error; if timegm() changed it, the date was successfully normalized. */
-                copy_tm.tm_wday = -1;
-                if (timegm(&copy_tm) == (time_t) -1 && copy_tm.tm_wday == -1)
-                        return -EINVAL;
-        } else {
-                r = mktime_or_timegm_usec(&copy_tm, /* utc= */ true, &usec);
-                if (r < 0)
-                        return r;
-        }
+        r = mktime_or_timegm_usec(&copy_tm, /* utc= */ true, &usec);
+        if (r < 0)
+                return r;
 
         /* Refuse non-normalized dates, e.g. Feb 30 */
         if (copy_tm.tm_mday != parsed_tm.tm_mday ||
@@ -1930,13 +1920,6 @@ int parse_calendar_date_full(const char *s, bool allow_pre_epoch, usec_t *ret_us
 
         if (ret_usec)
                 *ret_usec = usec;
-        if (ret_tm) {
-                /* Reset to unset, then fill in only the date fields we parsed and validated */
-                *ret_tm = BIRTH_DATE_UNSET;
-                ret_tm->tm_mday = parsed_tm.tm_mday;
-                ret_tm->tm_mon = parsed_tm.tm_mon;
-                ret_tm->tm_year = parsed_tm.tm_year;
-        }
 
         return 0;
 }
